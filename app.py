@@ -10,4 +10,5 @@ app.route("/", methods=["POST"])(vrp_solver)
 
 if __name__ == '__main__':
     from waitress import serve
+    print(f"Serving on http://{HOST}:{PORT}")
     serve(app, host=HOST, port=PORT)
