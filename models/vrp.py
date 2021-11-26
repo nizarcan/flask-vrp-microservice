@@ -1,23 +1,42 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
-# todo: add input validity check
-INPUT_KEYS = ["vehicles", "jobs", "matrix"]
-VEHICLE_KEYS = ["id", "start_index", "capacity"]
-JOB_KEYS = ["id", "location_index", "delivery", "service"]
-
 
 class VRP:
-    def __init__(self, input_json):
-        self.vehicles = input_json["vehicles"]
-        self.jobs = input_json["jobs"]
-        self.time_matrix = input_json["matrix"]
+    def __init__(self):
+        # Initiating all attributes upon creating an instance
+        # Raw input data #
+        self.vehicles = None
+        self.jobs = None
+        self.time_matrix = None
 
-        ############################################################################
+        # Data to be generated for problem solving model #
+        self.num_locations = None
+        self.num_vehicles = None
+        self.time_matrix = None
+        self.time_matrix = None
+        self.vehicle_capacities = None
+        self.start_index = None
+        self.end_index = None
+        self.demands = None
+        self.service_time = None
+        self.location_job_pair = None
 
+        # Model instance and variables #
+        self.solution = None
+        self.routing_manager = None
+        self.routing_model = None
+
+    def load_data(self, input_dict):
+        # Destructure the data into class attributes
+        self.vehicles = input_dict["vehicles"]
+        self.jobs = input_dict["jobs"]
+        self.time_matrix = input_dict["matrix"]
+
+    def generate_model_data(self):
         location_count = len(self.time_matrix)
         self.num_vehicles = len(self.vehicles)
-        self.time_matrix = [distance_row + [0] for distance_row in input_json["matrix"]]
+        self.time_matrix = [distance_row + [0] for distance_row in self.time_matrix]
         self.time_matrix += [(location_count + 1) * [0]]
         self.vehicle_capacities = [vehicle["capacity"][0] for vehicle in self.vehicles]
         self.start_index = [vehicle["start_index"] for vehicle in self.vehicles]
@@ -34,11 +53,14 @@ class VRP:
             else:
                 self.location_job_pair[job["location_index"]] = [job["id"]]
 
-        ############################################################################
+    def time_callback(self, from_index, to_index):
+        from_node = self.routing_manager.IndexToNode(from_index)
+        to_node = self.routing_manager.IndexToNode(to_index)
+        return self.time_matrix[from_node][to_node] + self.service_time[to_node]
 
-        self.solution = None
-        self.routing_manager = None
-        self.routing_model = None
+    def demand_callback(self, from_index):
+        from_node = self.routing_manager.IndexToNode(from_index)
+        return self.demands[from_node]
 
     def build_model(self):
         self.routing_manager = pywrapcp.RoutingIndexManager(len(self.time_matrix),
@@ -49,20 +71,11 @@ class VRP:
 
         self.routing_model = pywrapcp.RoutingModel(self.routing_manager)
 
-        def time_callback(from_index, to_index):
-            from_node = self.routing_manager.IndexToNode(from_index)
-            to_node = self.routing_manager.IndexToNode(to_index)
-            return self.time_matrix[from_node][to_node] + self.service_time[to_node]
-
-        transit_callback_index = self.routing_model.RegisterTransitCallback(time_callback)
+        transit_callback_index = self.routing_model.RegisterTransitCallback(self.time_callback)
 
         self.routing_model.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-        def demand_callback(from_index):
-            from_node = self.routing_manager.IndexToNode(from_index)
-            return self.demands[from_node]
-
-        demand_callback_index = self.routing_model.RegisterUnaryTransitCallback(demand_callback)
+        demand_callback_index = self.routing_model.RegisterUnaryTransitCallback(self.demand_callback)
 
         self.routing_model.AddDimensionWithVehicleCapacity(
             demand_callback_index,
@@ -81,7 +94,15 @@ class VRP:
 
     def return_solution(self):
         if self.solution:
-            solution_dict = {}
+            solution_dict = {
+                "total_delivery_duration": 0,
+                "routes": {
+                    vehicle["id"]: {
+                    "jobs": [],
+                    "delivery_duration": 0
+                    } 
+                for vehicle in self.vehicles}
+                }
             solution_dict["total_delivery_duration"] = 0
             solution_dict["routes"] = {vehicle["id"]: {
                 "jobs": [],
@@ -100,14 +121,17 @@ class VRP:
                     solution_dict["routes"][vehicle_id]["delivery_duration"] += self.routing_model.GetArcCostForVehicle(current_node, next_node, vehicle_idx)
                     current_node = next_node;
                 solution_dict["total_delivery_duration"] += solution_dict["routes"][vehicle_id]["delivery_duration"]
-
+            
             return solution_dict
+
 
 
 if __name__ == "__main__":
     import json
     json_data = json.load(open("data/sample_input.json", encoding="utf-8"))
-    model = VRP(json_data)
+    model = VRP()
+    model.load_data(json_data)
+    model.generate_model_data()
     model.build_model()
     model.solve()
     print(model.return_solution())

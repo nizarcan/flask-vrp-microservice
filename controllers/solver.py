@@ -2,7 +2,10 @@ from flask import request, jsonify
 from models.vrp import VRP
 
 def vrp_solver():
-    model = VRP(request.json)
+    model = VRP()
+    model.load_data(request.json)
+    model.generate_model_data()
     model.build_model()
     model.solve()
-    return jsonify(model.return_solution())
+    solution_dict = model.return_solution()
+    return jsonify(solution_dict)
