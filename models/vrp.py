@@ -1,5 +1,6 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+from errors import InvalidRequestError, NoSolutionError
 
 
 class VRP:
@@ -35,10 +36,12 @@ class VRP:
         In this method, payload gets destructured into 
         class elements for easier data access.
         """
-        
-        self.vehicles = input_dict["vehicles"]
-        self.jobs = input_dict["jobs"]
-        self.time_matrix = input_dict["matrix"]
+        try:        
+            self.vehicles = input_dict["vehicles"]
+            self.jobs = input_dict["jobs"]
+            self.time_matrix = input_dict["matrix"]
+        except:
+            raise InvalidRequestError
 
     def generate_model_data(self):
         """
@@ -52,34 +55,37 @@ class VRP:
             to other nodes are set to 0 and set as the ending node for each vehicle. 
         """
 
-        # `num_locations` counts the dummy node too.
-        self.num_locations = len(self.time_matrix) + 1
-        self.num_vehicles = len(self.vehicles)
+        try:
+            # `num_locations` counts the dummy node too.
+            self.num_locations = len(self.time_matrix) + 1
+            self.num_vehicles = len(self.vehicles)
 
-        # Dummy node creation on the time matrix
-        self.time_matrix = [distance_row + [0] for distance_row in self.time_matrix]
-        self.time_matrix += [(self.num_locations) * [0]]
+            # Dummy node creation on the time matrix
+            self.time_matrix = [distance_row + [0] for distance_row in self.time_matrix]
+            self.time_matrix += [(self.num_locations) * [0]]
 
-        # Vehicle capacities extracted
-        self.vehicle_capacities = [vehicle["capacity"][0] for vehicle in self.vehicles]
+            # Vehicle capacities extracted
+            self.vehicle_capacities = [vehicle["capacity"][0] for vehicle in self.vehicles]
 
-        # Starting index are extracted from `self.vehicles` and `end_index` is set as the dummy node
-        self.start_index = [vehicle["start_index"] for vehicle in self.vehicles]
-        self.end_index = self.num_vehicles * [self.num_locations - 1]
+            # Starting index are extracted from `self.vehicles` and `end_index` is set as the dummy node
+            self.start_index = [vehicle["start_index"] for vehicle in self.vehicles]
+            self.end_index = self.num_vehicles * [self.num_locations - 1]
 
-        # Demands and service times are pooled w.r.t. location.
-        # Upon pooling, location-job info is kept in a dictionary.
-        self.demands = (self.num_locations) * [0]
-        self.service_time = (self.num_locations) * [0]
-        self.location_job_pair = {}
-        for job in self.jobs:
-            location_index = job["location_index"]
-            self.demands[location_index] += job["delivery"][0]
-            self.service_time[location_index] += job["service"]
-            if location_index in self.location_job_pair.keys():
-                self.location_job_pair[location_index].append(job["id"])
-            else:
-                self.location_job_pair[location_index] = [job["id"]]
+            # Demands and service times are pooled w.r.t. location.
+            # Upon pooling, location-job info is kept in a dictionary.
+            self.demands = (self.num_locations) * [0]
+            self.service_time = (self.num_locations) * [0]
+            self.location_job_pair = {}
+            for job in self.jobs:
+                location_index = job["location_index"]
+                self.demands[location_index] += job["delivery"][0]
+                self.service_time[location_index] += job["service"]
+                if location_index in self.location_job_pair.keys():
+                    self.location_job_pair[location_index].append(job["id"])
+                else:
+                    self.location_job_pair[location_index] = [job["id"]]
+        except:
+            raise InvalidRequestError
 
     def time_callback(self, from_index, to_index):
         """
@@ -107,29 +113,32 @@ class VRP:
         later used in solution returning phase.         
         """
 
-        self.routing_manager = pywrapcp.RoutingIndexManager(self.num_locations,
-                                                            self.num_vehicles,
-                                                            self.start_index,
-                                                            self.end_index
-                                                            )
+        try:
+            self.routing_manager = pywrapcp.RoutingIndexManager(self.num_locations,
+                                                                self.num_vehicles,
+                                                                self.start_index,
+                                                                self.end_index
+                                                                )
 
-        self.routing_model = pywrapcp.RoutingModel(self.routing_manager)
+            self.routing_model = pywrapcp.RoutingModel(self.routing_manager)
 
-        transit_callback_index = self.routing_model.RegisterTransitCallback(self.time_callback)
+            transit_callback_index = self.routing_model.RegisterTransitCallback(self.time_callback)
 
-        # Objective function of the model
-        self.routing_model.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+            # Objective function of the model
+            self.routing_model.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-        demand_callback_index = self.routing_model.RegisterUnaryTransitCallback(self.demand_callback)
+            demand_callback_index = self.routing_model.RegisterUnaryTransitCallback(self.demand_callback)
 
-        # Adding the demand constraint to the model
-        self.routing_model.AddDimensionWithVehicleCapacity(
-            demand_callback_index,      # evaluator_index
-            0,                          # max_slack, which is 0 for our case
-            self.vehicle_capacities,    # vehicle capacity list
-            True,                       # the cumulative value of met demand starts from 0
-            "Capacity"                  # constraint name
-            )
+            # Adding the demand constraint to the model
+            self.routing_model.AddDimensionWithVehicleCapacity(
+                demand_callback_index,      # evaluator_index
+                0,                          # max_slack, which is 0 for our case
+                self.vehicle_capacities,    # vehicle capacity list
+                True,                       # the cumulative value of met demand starts from 0
+                "Capacity"                  # constraint name
+                )
+        except:
+            raise InvalidRequestError
 
     def solve(self):
         """
@@ -151,8 +160,9 @@ class VRP:
         Method that returns the solution at the structure stated in README.
         """
 
-        if self.solution:
-            
+        if not self.solution:
+            raise NoSolutionError
+        else:    
             total_delivery_duration = 0
             routes = {}
             # Looping over every vehicle
