@@ -9,4 +9,5 @@ PORT = 5000
 app.route("/", methods=["POST"])(vrp_solver)
 
 if __name__ == '__main__':
-    app.run(host=HOST, port=PORT)
+    from waitress import serve
+    serve(app, host=HOST, port=PORT)
