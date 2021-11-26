@@ -181,7 +181,7 @@ class VRP:
                     # If there is a job for specified location, then the jobs are added to the solution dictionary. 
                     if node_idx in self.location_job_pair.keys():
                         for job_id in self.location_job_pair[node_idx]:
-                            vehicle_jobs.append(job_id)
+                            vehicle_jobs.append(str(job_id))
                     vehicle_delivery_duration += self.routing_model.GetArcCostForVehicle(current_node, next_node, vehicle_idx)
                     current_node = next_node;
 
