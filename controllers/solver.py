@@ -8,4 +8,5 @@ def vrp_solver():
     model.build_model()
     model.solve()
     solution_dict = model.return_solution()
+    model.flush_model()
     return jsonify(solution_dict)

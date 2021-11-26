@@ -124,6 +124,13 @@ class VRP:
             
             return solution_dict
 
+    def flush_model(self):
+        '''
+        This method is added to fix a memory leak.
+        Prior to usage of this method, routing_model attribute prevented
+        the garbage collector from collecting the whole object.
+        '''
+        self.routing_model = None
 
 
 if __name__ == "__main__":
