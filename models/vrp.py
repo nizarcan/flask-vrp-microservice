@@ -106,7 +106,7 @@ class VRP:
 
 if __name__ == "__main__":
     import json
-    json_data = json.load(open("input.json", encoding="utf-8"))
+    json_data = json.load(open("data/sample_input.json", encoding="utf-8"))
     model = VRP(json_data)
     model.build_model()
     model.solve()
