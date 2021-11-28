@@ -22,8 +22,10 @@ docker-compose up
 
 at the root directory.
 
-<p align="center"> Then a JSON in a format described below can be POST-requested to http://localhost:5000 to get a solution in JSON.
+<br>
+<p align="center"><strong>Then for the service route and examples, see the postman collection at the root directory.  </strrong>
     <br> 
+    <br>
 </p>
 
 ## 🔧 Project Structure
@@ -32,16 +34,20 @@ at the root directory.
 flask-vrp-microservice
 |--- app.py -> Main Script
 |
+|--- test.py -> Test Script
+|
 |--- controllers
 |    |--- solver -> Controller script that handles request
 |
-|--- data
-|    |--- input_data_[number]_orders.json -> Randomly generated input files for testing
+|--- data -> Randomly generated input files and their solutions for testing
 |
 |--- errors -> Custom errors for appropriate response generation
 |
 |--- models
-     |--- vrp -> The model that solves the problem and returns solution
+|     |--- vrp -> The model that solves the problem and returns solution
+|
+|--- wrappers
+|    |--- solver -> Wrapper for OR-Tools
 ```
 
 ## 📝 Valid Request Structure
