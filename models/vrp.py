@@ -1,6 +1,9 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from errors import InvalidRequestError, NoSolutionError
+from models.vehicle_collection import VehicleCollection
+from models.job_collection import JobCollection
+from models.time_matrix import TimeMatrix
 
 
 class VRP:
@@ -9,24 +12,12 @@ class VRP:
         Initiating all attributes upon creating an instance
         """
         
-        # Raw input data #
+        # Input classes
         self.vehicles = None
         self.jobs = None
-        self.time_matrix = None
+        self.times = None
 
-        # Data to be generated for problem solving model #
-        self.num_locations = None
-        self.num_vehicles = None
-        self.time_matrix = None
-        self.time_matrix = None
-        self.vehicle_capacities = None
-        self.start_index = None
-        self.end_index = None
-        self.demands = None
-        self.service_time = None
-        self.location_job_pair = None
-
-        # Model instance and variables #
+        # Model instance and variables
         self.solution = None
         self.routing_manager = None
         self.routing_model = None
@@ -36,54 +27,10 @@ class VRP:
         In this method, payload gets destructured into 
         class elements for easier data access.
         """
-        try:        
-            self.vehicles = input_dict["vehicles"]
-            self.jobs = input_dict["jobs"]
-            self.time_matrix = input_dict["matrix"]
-        except:
-            raise InvalidRequestError
-
-    def generate_model_data(self):
-        """
-        In this method, the raw data goes through
-        the data prep to be fed to the model.
-
-        Things to look out: 
-        > This is a location-based model. In data prep phase, demands for same locations are pooled.
-        > Since this is a location-based model, job-location pairs are kept for desired output format.
-        > A return to starting point is not necessary for vehicles. Thus, a dummy node is created, its time
-            to other nodes are set to 0 and set as the ending node for each vehicle. 
-        """
-
         try:
-            # `num_locations` counts the dummy node too.
-            self.num_locations = len(self.time_matrix) + 1
-            self.num_vehicles = len(self.vehicles)
-
-            # Dummy node creation on the time matrix
-            self.time_matrix = [distance_row + [0] for distance_row in self.time_matrix]
-            self.time_matrix += [(self.num_locations) * [0]]
-
-            # Vehicle capacities extracted
-            self.vehicle_capacities = [vehicle["capacity"][0] for vehicle in self.vehicles]
-
-            # Starting index are extracted from `self.vehicles` and `end_index` is set as the dummy node
-            self.start_index = [vehicle["start_index"] for vehicle in self.vehicles]
-            self.end_index = self.num_vehicles * [self.num_locations - 1]
-
-            # Demands and service times are pooled w.r.t. location.
-            # Upon pooling, location-job info is kept in a dictionary.
-            self.demands = (self.num_locations) * [0]
-            self.service_time = (self.num_locations) * [0]
-            self.location_job_pair = {}
-            for job in self.jobs:
-                location_index = job["location_index"]
-                self.demands[location_index] += job["delivery"][0]
-                self.service_time[location_index] += job["service"]
-                if location_index in self.location_job_pair.keys():
-                    self.location_job_pair[location_index].append(job["id"])
-                else:
-                    self.location_job_pair[location_index] = [job["id"]]
+            self.times = TimeMatrix(input_dict["matrix"])
+            self.vehicles = VehicleCollection(input_dict["vehicles"], len(self.times))
+            self.jobs = JobCollection(input_dict["jobs"], len(self.times))
         except:
             raise InvalidRequestError
 
@@ -96,7 +43,7 @@ class VRP:
 
         from_node = self.routing_manager.IndexToNode(from_index)
         to_node = self.routing_manager.IndexToNode(to_index)
-        return self.time_matrix[from_node][to_node] + self.service_time[to_node]
+        return self.times.matrix[from_node][to_node] + self.jobs.service_times[to_node]
 
     def demand_callback(self, from_index):
         """
@@ -104,7 +51,7 @@ class VRP:
         """
 
         from_node = self.routing_manager.IndexToNode(from_index)
-        return self.demands[from_node]
+        return self.jobs.demands[from_node]
 
     def build_model(self):
         """
@@ -114,10 +61,10 @@ class VRP:
         """
 
         try:
-            self.routing_manager = pywrapcp.RoutingIndexManager(self.num_locations,
-                                                                self.num_vehicles,
-                                                                self.start_index,
-                                                                self.end_index
+            self.routing_manager = pywrapcp.RoutingIndexManager(len(self.times),
+                                                                len(self.vehicles),
+                                                                self.vehicles.start_index,
+                                                                self.vehicles.end_index
                                                                 )
 
             self.routing_model = pywrapcp.RoutingModel(self.routing_manager)
@@ -133,7 +80,7 @@ class VRP:
             self.routing_model.AddDimensionWithVehicleCapacity(
                 demand_callback_index,      # evaluator_index
                 0,                          # max_slack, which is 0 for our case
-                self.vehicle_capacities,    # vehicle capacity list
+                self.vehicles.capacities,   # vehicle capacity list
                 True,                       # the cumulative value of met demand starts from 0
                 "Capacity"                  # constraint name
                 )
@@ -155,48 +102,52 @@ class VRP:
 
         self.solution = self.routing_model.SolveWithParameters(search_parameters)
 
+        if not self.solution:
+            self.flush_model()
+            raise NoSolutionError
+
+
     def return_solution(self):
         """
         Method that returns the solution at the structure stated in README.
         """
 
-        if not self.solution:
-            raise NoSolutionError
-        else:    
-            total_delivery_duration = 0
-            routes = {}
-            # Looping over every vehicle
-            for vehicle_idx in range(self.num_vehicles):
-                vehicle_jobs = []
-                vehicle_delivery_duration = 0
+        total_delivery_duration = 0
+        routes = {}
+        # Looping over every vehicle
+        for vehicle_idx, vehicle in enumerate(self.vehicles):
+            vehicle_jobs = []
+            vehicle_delivery_duration = 0
 
-                current_node = self.routing_model.Start(vehicle_idx)
-                vehicle_id = self.vehicles[vehicle_idx]["id"]
+            current_node = self.routing_model.Start(vehicle_idx)
+            vehicle_id = vehicle.id
 
-                # Looping over every node in route of solution for selected vehicle
-                while not self.routing_model.IsEnd(current_node):
-                    next_node = self.solution.Value(self.routing_model.NextVar(current_node))
-                    node_idx = self.routing_manager.IndexToNode(current_node)
-                    
-                    # If there is a job for specified location, then the jobs are added to the solution dictionary. 
-                    if node_idx in self.location_job_pair.keys():
-                        for job_id in self.location_job_pair[node_idx]:
-                            vehicle_jobs.append(str(job_id))
-                    vehicle_delivery_duration += self.routing_model.GetArcCostForVehicle(current_node, next_node, vehicle_idx)
-                    current_node = next_node;
+            # Looping over every node in route of solution for selected vehicle
+            while not self.routing_model.IsEnd(current_node):
+                next_node = self.solution.Value(self.routing_model.NextVar(current_node))
+                node_idx = self.routing_manager.IndexToNode(current_node)
+                
+                # If there is a job for specified location, then the jobs are added to the solution dictionary. 
+                if node_idx in self.jobs.reverse_map.keys():
+                    for job_id in self.jobs.reverse_map[node_idx]:
+                        vehicle_jobs.append(str(job_id))
+                vehicle_delivery_duration += self.routing_model.GetArcCostForVehicle(current_node, next_node, vehicle_idx)
+                current_node = next_node;
 
-                total_delivery_duration += vehicle_delivery_duration
-                routes[vehicle_id] = {
-                    "jobs": vehicle_jobs,
-                    "delivery_duration": vehicle_delivery_duration
-                }
-
-            solution_dict = {
-                "total_delivery_duration": total_delivery_duration,
-                "routes": routes
+            total_delivery_duration += vehicle_delivery_duration
+            routes[vehicle_id] = {
+                "jobs": vehicle_jobs,
+                "delivery_duration": vehicle_delivery_duration
             }
-            
-            return solution_dict
+
+        solution_dict = {
+            "total_delivery_duration": total_delivery_duration,
+            "routes": routes
+        }
+        
+        # self.flush_model()
+
+        return solution_dict
 
     def flush_model(self):
         '''
@@ -213,7 +164,6 @@ if __name__ == "__main__":
     json_data = json.load(open("data/sample_input.json", encoding="utf-8"))
     model = VRP()
     model.load_data(json_data)
-    model.generate_model_data()
     model.build_model()
     model.solve()
     print(model.return_solution())

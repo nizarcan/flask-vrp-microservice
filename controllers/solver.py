@@ -6,7 +6,6 @@ def vrp_solver():
     try:
         model = VRP()
         model.load_data(request.json)
-        model.generate_model_data()
         model.build_model()
         model.solve()
         solution_dict = model.return_solution()
