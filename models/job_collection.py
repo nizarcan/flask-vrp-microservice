@@ -1,16 +1,20 @@
+from errors import InvalidInputError
 from models.job import Job
 
 class JobCollection:
     def __init__(self, job_list, location_count):
-        # Initiating job list and other attributes  
-        self.jobs = []
+        try:
+            # Initiating job list and other attributes  
+            self.jobs = []
 
-        self.demands = (location_count) * [0]
-        self.service_times = (location_count) * [0]
-        self.reverse_map = {}
+            self.demands = (location_count) * [0]
+            self.service_times = (location_count) * [0]
+            self.reverse_map = {}
 
-        for job in job_list:
-            self.add(job)
+            for job in job_list:
+                self.add(job)
+        except Exception:
+            raise InvalidInputError
     
     def __len__(self):
         return len(self.jobs)

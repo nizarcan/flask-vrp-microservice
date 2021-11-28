@@ -1,18 +1,22 @@
 from models.vehicle import Vehicle
+from errors import InvalidInputError
 
 class VehicleCollection:
     def __init__(self, vehicle_list, location_count):
-        # Initiate vehicle list
-        self.vehicles = []
-        for vehicle in vehicle_list:
-            self.add(vehicle)
+        try:
+            # Initiate vehicle list
+            self.vehicles = []
+            for vehicle in vehicle_list:
+                self.add(vehicle)
 
-        # Vehicle capacities extracted
-        self.capacities = [vehicle.capacity for vehicle in self.vehicles]
+            # Vehicle capacities extracted
+            self.capacities = [vehicle.capacity for vehicle in self.vehicles]
 
-        # Starting index are extracted from `self.vehicles` and `end_index` is set as the dummy node
-        self.start_index = [vehicle.start_idx for vehicle in self.vehicles]
-        self.end_index = len(self) * [location_count - 1]
+            # Starting index are extracted from `self.vehicles` and `end_index` is set as the dummy node
+            self.start_index = [vehicle.start_idx for vehicle in self.vehicles]
+            self.end_index = len(self) * [location_count - 1]
+        except Exception:
+            raise InvalidInputError
 
     def __len__(self):
         return len(self.vehicles)
