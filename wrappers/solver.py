@@ -116,7 +116,7 @@ def render_solution(vrp_model):
                 current_node = next_node;
 
             total_delivery_duration += vehicle_delivery_duration
-            routes[vehicle_id] = {
+            routes[str(vehicle_id)] = {
                 "jobs": vehicle_jobs,
                 "delivery_duration": vehicle_delivery_duration
             }

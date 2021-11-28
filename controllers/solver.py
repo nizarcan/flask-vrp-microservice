@@ -2,13 +2,16 @@ from flask import request, jsonify
 from models.vrp import VRP
 from errors import InvalidInputError, NoSolutionError
 
-def vrp_solver():
+def vrp_solver(data):
+    model = VRP()
+    model.load_data(data)
+    model.build_model()
+    model.solve()
+    return model.get_solution()
+
+def solution_server():
     try:
-        model = VRP()
-        model.load_data(request.json)
-        model.build_model()
-        model.solve()
-        solution = model.get_solution()
+        solution = vrp_solver(request.json)
         return jsonify(solution)
     except InvalidInputError:
         return jsonify({"message": "The request body did not have the appropriate structure. Please retry the request with a valid structure."}), 422

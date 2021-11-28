@@ -1,0 +1,13 @@
+{
+  "routes": {
+    "1": {
+      "delivery_duration": 6037,
+      "jobs": ["10", "2", "9", "7", "5", "4", "1", "8"]
+    },
+    "2": {
+      "delivery_duration": 1431,
+      "jobs": ["6", "3"]
+    }
+  },
+  "total_delivery_duration": 7468
+}
