@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from models.vrp import VRP
-from errors import InvalidRequestError, NoSolutionError
+from errors import InvalidInputError, NoSolutionError
 
 def vrp_solver():
     try:
@@ -8,10 +8,9 @@ def vrp_solver():
         model.load_data(request.json)
         model.build_model()
         model.solve()
-        solution_dict = model.return_solution()
-        model.flush_model()
-        return jsonify(solution_dict)
-    except InvalidRequestError:
+        solution = model.get_solution()
+        return jsonify(solution)
+    except InvalidInputError:
         return jsonify({"message": "The request body did not have the appropriate structure. Please retry the request with a valid structure."}), 422
     except NoSolutionError:
         return jsonify({"message": "With the sent request body there were no feasible solution."}), 422

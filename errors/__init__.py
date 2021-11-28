@@ -1,4 +1,4 @@
-class InvalidRequestError(Exception):
+class InvalidInputError(Exception):
     """
     Will be raised when payload is not at the desired structure.
     """
