@@ -2,7 +2,7 @@
 
 ---
 
-<p align="center"> A simple HTTP microservice built with Flask that solves VRPs using Google's OR-Tools.
+<p align="center"> Microservice built with Flask that solves VRP using Google's OR-Tools.
     <br> 
 </p>
 
